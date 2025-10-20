@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"log"
 
@@ -15,6 +17,21 @@ const (
 	NackDiscard
 )
 
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
+	handler func(T) AckType,
+) error {
+	return subscribe[T](conn, exchange, queueName, key, queueType, handler, func(b []byte) (T, error) {
+		var msg T
+		err := gob.NewDecoder(bytes.NewReader(b)).Decode(&msg)
+		return msg, err
+	})
+}
+
 func SubscribeJSON[T any](
 	conn *amqp.Connection,
 	exchange,
@@ -23,7 +40,27 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType, // an enum to represent "durable" or "transient"
 	handler func(T) AckType,
 ) error {
+	return subscribe[T](conn, exchange, queueName, key, queueType, handler, func(b []byte) (T, error) {
+		var msg T
+		err := json.Unmarshal(b, &msg)
+		return msg, err
+	})
+}
+
+func subscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+	unmarshaller func([]byte) (T, error),
+) error {
 	ch, q, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return err
+	}
+	err = ch.Qos(10, 0, true)
 	if err != nil {
 		return err
 	}
@@ -33,8 +70,8 @@ func SubscribeJSON[T any](
 	}
 	go func() {
 		for delivery := range deliveriesCh {
-			var msg T
-			if err := json.Unmarshal(delivery.Body, &msg); err != nil {
+			msg, err := unmarshaller(delivery.Body)
+			if err != nil {
 				log.Printf("failed to unmarshal message: %v", err)
 				err = delivery.Nack(false, false)
 				if err != nil {
