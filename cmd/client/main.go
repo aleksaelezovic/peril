@@ -10,6 +10,13 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
+	}
+}
+
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
@@ -25,20 +32,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	ch, _, err := pubsub.DeclareAndBind(
+	gamestate := gamelogic.NewGameState(username)
+	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
 		routing.PauseKey,
 		pubsub.Transient,
+		handlerPause(gamestate),
 	)
 	if err != nil {
-		fmt.Printf("Error declaring and binding queue: %s\n", err.Error())
+		fmt.Printf("Error subscribing to queue: %s\n", err.Error())
 		os.Exit(1)
 	}
-	defer ch.Close()
 
-	gamestate := gamelogic.NewGameState(username)
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
