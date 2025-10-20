@@ -26,6 +26,18 @@ func main() {
 	}
 	defer ch.Close()
 
+	_, _, err = pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.Durable,
+	)
+	if err != nil {
+		fmt.Printf("Error declaring and binding: %s\n", err.Error())
+		os.Exit(1)
+	}
+
 	gamelogic.PrintServerHelp()
 	for {
 		words := gamelogic.GetInput()
