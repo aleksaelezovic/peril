@@ -37,8 +37,9 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.ArmyM
 			)
 			if err != nil {
 				log.Printf("Error publishing war recognition: %s", err.Error())
+				return pubsub.NackRequeue
 			}
-			return pubsub.NackRequeue
+			return pubsub.Ack
 		default:
 			return pubsub.NackDiscard
 		}
