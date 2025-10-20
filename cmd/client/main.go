@@ -14,7 +14,7 @@ import (
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
-		fmt.Printf("Error connecting to rabbitmq: %s", err.Error())
+		fmt.Printf("Error connecting to rabbitmq: %s\n", err.Error())
 		os.Exit(1)
 	}
 	fmt.Println("Successfully connected to rabbitmq.")
@@ -22,7 +22,7 @@ func main() {
 
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
-		fmt.Printf("Error getting username: %s", err.Error())
+		fmt.Printf("Error getting username: %s\n", err.Error())
 		os.Exit(1)
 	}
 
@@ -34,7 +34,7 @@ func main() {
 		pubsub.Transient,
 	)
 	if err != nil {
-		fmt.Printf("Error declaring and binding queue: %s", err.Error())
+		fmt.Printf("Error declaring and binding queue: %s\n", err.Error())
 		os.Exit(1)
 	}
 
