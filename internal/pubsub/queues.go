@@ -11,6 +11,10 @@ const (
 	Transient
 )
 
+var table = amqp.Table{
+	"x-dead-letter-exchange": "peril_dlx",
+}
+
 func DeclareAndBind(
 	conn *amqp.Connection,
 	exchange,
@@ -28,12 +32,12 @@ func DeclareAndBind(
 		queueType == Transient,
 		queueType == Transient,
 		false,
-		nil,
+		table,
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
-	err = ch.QueueBind(q.Name, key, exchange, false, nil)
+	err = ch.QueueBind(q.Name, key, exchange, false, table)
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
