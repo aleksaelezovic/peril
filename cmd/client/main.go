@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
@@ -17,6 +18,13 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
 	}
 }
 
+func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) {
+	return func(move gamelogic.ArmyMove) {
+		defer fmt.Print("> ")
+		gs.HandleMove(move)
+	}
+}
+
 func main() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
@@ -25,6 +33,13 @@ func main() {
 	}
 	fmt.Println("Successfully connected to rabbitmq.")
 	defer conn.Close()
+
+	ch, err := conn.Channel()
+	if err != nil {
+		fmt.Printf("Error creating channel: %s\n", err.Error())
+		os.Exit(1)
+	}
+	defer ch.Close()
 
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
@@ -40,6 +55,18 @@ func main() {
 		routing.PauseKey,
 		pubsub.Transient,
 		handlerPause(gamestate),
+	)
+	if err != nil {
+		fmt.Printf("Error subscribing to queue: %s\n", err.Error())
+		os.Exit(1)
+	}
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+username,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.Transient,
+		handlerMove(gamestate),
 	)
 	if err != nil {
 		fmt.Printf("Error subscribing to queue: %s\n", err.Error())
@@ -69,10 +96,16 @@ func main() {
 			continue
 		}
 		if command == "move" {
-			_, err := gamestate.CommandMove(words)
+			move, err := gamestate.CommandMove(words)
 			if err != nil {
 				fmt.Printf("Error moving: %s\n", err.Error())
+				continue
 			}
+			err = pubsub.PublishJSON(ch, routing.ExchangePerilTopic, routing.ArmyMovesPrefix+"."+username, move)
+			if err != nil {
+				fmt.Printf("Error publishing move: %s\n", err.Error())
+			}
+			log.Println("Move published successfully.")
 			continue
 		}
 		if command == "spawn" {
