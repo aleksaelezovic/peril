@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -26,7 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, _, err = pubsub.DeclareAndBind(
+	ch, _, err := pubsub.DeclareAndBind(
 		conn,
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
@@ -37,9 +36,50 @@ func main() {
 		fmt.Printf("Error declaring and binding queue: %s\n", err.Error())
 		os.Exit(1)
 	}
+	defer ch.Close()
 
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt)
-	<-signalCh
-	fmt.Println("Shutting down...")
+	gamestate := gamelogic.NewGameState(username)
+	for {
+		words := gamelogic.GetInput()
+		if len(words) == 0 {
+			continue
+		}
+		command := words[0]
+		if command == "quit" {
+			gamelogic.PrintQuit()
+			break
+		}
+		if command == "help" {
+			gamelogic.PrintClientHelp()
+			continue
+		}
+		if command == "status" {
+			gamestate.CommandStatus()
+			continue
+		}
+		if command == "spam" {
+			fmt.Println("Spamming not allowed yet!")
+			continue
+		}
+		if command == "move" {
+			_, err := gamestate.CommandMove(words)
+			if err != nil {
+				fmt.Printf("Error moving: %s\n", err.Error())
+			}
+			continue
+		}
+		if command == "spawn" {
+			err := gamestate.CommandSpawn(words)
+			if err != nil {
+				fmt.Printf("Error spawning: %s\n", err.Error())
+			}
+			continue
+		}
+		fmt.Println("Command not recognized.")
+	}
+
+	// signalCh := make(chan os.Signal, 1)
+	// signal.Notify(signalCh, os.Interrupt)
+	// <-signalCh
+	// fmt.Println("Shutting down...")
 }
